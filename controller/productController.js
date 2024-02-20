@@ -50,3 +50,41 @@ module.exports.listTransactions = async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
+module.exports.getStatistics = async (req, res) => {
+  try {
+    const { month } = req.query;
+
+    const monthCondition = month
+      ? { $expr: { $eq: [{ $month: "$dateOfSale" }, parseInt(month)] } }
+      : {};
+
+    const statistics = await Product.aggregate([
+      { $match: monthCondition },
+      {
+        $group: {
+          _id: null,
+          totalSaleAmount: { $sum: "$price" },
+          totalSoldItems: {
+            $sum: { $cond: { if: "$sold", then: 1, else: 0 } },
+          },
+          totalNotSoldItems: {
+            $sum: { $cond: { if: "$sold", then: 0, else: 1 } },
+          },
+        },
+      },
+    ]);
+
+    const { totalSaleAmount, totalSoldItems, totalNotSoldItems } =
+      statistics[0];
+
+    res.status(200).json({
+      totalSaleAmount,
+      totalSoldItems,
+      totalNotSoldItems,
+    });
+  } catch (error) {
+    console.error("Error getting statistics:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
